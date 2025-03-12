@@ -1,0 +1,122 @@
+-- Создание таблицы записей к врачу
+CREATE TABLE IF NOT EXISTS appointments (
+    id SERIAL PRIMARY KEY,
+    patient_name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    appointment_date DATE NOT NULL,
+    appointment_time TIME NOT NULL,
+    doctor VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Создание таблицы пользователей
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(10) CHECK (role IN ('ADMIN', 'GUEST')) NOT NULL DEFAULT 'GUEST',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Добавление администратора
+INSERT INTO users (username, password, role)
+VALUES ('admin', 'admin', 'ADMIN')
+ON CONFLICT (username) DO NOTHING;
+
+-- Добавление гостя
+INSERT INTO users (username, password, role)
+VALUES ('guest', 'guest', 'GUEST')
+ON CONFLICT (username) DO NOTHING;
+-- Процедура создания базы данных (выполняется в pgAdmin, но в коде Java не вызывается)
+CREATE OR REPLACE FUNCTION create_appointment_database()
+RETURNS VOID AS $$
+BEGIN
+    CREATE TABLE IF NOT EXISTS appointments (
+        id SERIAL PRIMARY KEY,
+        patient_name VARCHAR(100) NOT NULL,
+        phone VARCHAR(20) NOT NULL,
+        appointment_date DATE NOT NULL,
+        appointment_time TIME NOT NULL,
+        doctor VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+-- Процедура очистки таблицы
+CREATE OR REPLACE PROCEDURE clear_appointments_table()
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    DELETE FROM appointments;
+END;
+$$;
+
+-- Процедура удаления базы данных
+CREATE OR REPLACE PROCEDURE drop_appointment_database()
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    DROP TABLE IF EXISTS appointments, users;
+END;
+$$;
+
+-- Процедура добавления записи
+CREATE OR REPLACE PROCEDURE add_appointment(
+    p_name VARCHAR(100),
+    p_phone VARCHAR(20),
+    p_date DATE,
+    p_time TIME,
+    p_doctor VARCHAR(100)
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    INSERT INTO appointments (patient_name, phone, appointment_date, appointment_time, doctor)
+    VALUES (p_name, p_phone, p_date, p_time, p_doctor);
+END;
+$$;
+
+-- Процедура поиска записей по имени пациента
+CREATE OR REPLACE FUNCTION search_appointments_by_name(p_name VARCHAR(100))
+RETURNS TABLE(id INT, patient_name VARCHAR, phone VARCHAR, appointment_date DATE, appointment_time TIME, doctor VARCHAR) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT * FROM appointments WHERE patient_name ILIKE '%' || p_name || '%';
+END;
+$$ LANGUAGE plpgsql;
+
+-- Процедура обновления записи
+CREATE OR REPLACE PROCEDURE update_appointment(
+    p_id INT,
+    p_name VARCHAR(100),
+    p_phone VARCHAR(20),
+    p_date DATE,
+    p_time TIME,
+    p_doctor VARCHAR(100)
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    UPDATE appointments 
+    SET patient_name = p_name,
+        phone = p_phone,
+        appointment_date = p_date,
+        appointment_time = p_time,
+        doctor = p_doctor
+    WHERE id = p_id;
+END;
+$$;
+
+-- Процедура удаления записи по имени пациента
+CREATE OR REPLACE PROCEDURE delete_appointment_by_name(p_name VARCHAR(100))
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    DELETE FROM appointments WHERE patient_name ILIKE '%' || p_name || '%';
+END;
+$$;
+GRANT CONNECT ON DATABASE doctor_appointments TO admin, guest;
+GRANT USAGE ON SCHEMA public TO admin, guest;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO admin;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO guest;
